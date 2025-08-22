@@ -1,0 +1,157 @@
+#!/bin/bash
+
+# Big colorful title
+print_title() {
+    tput clear
+    echo -e "${GREEN}  █████╗███╗   ██╗ █████╗ ██╗  ██╗███████╗    ${RED} ██████╗  █████╗ ███╗   ███╗███████╗${RESET}"
+    echo -e "${GREEN}██╔════╝████╗  ██║██╔══██╗██║ ██╔╝██╔════╝    ${RED}██╔════╝ ██╔══██╗████╗ ████║██╔════╝${RESET}"
+    echo -e "${GREEN}█████╗  ██╔██╗ ██║███████║█████╔╝ █████╗      ${RED}██║  ███╗███████║██╔████╔██║█████╗  ${RESET}"
+    echo -e "${GREEN}     ██ ██║╚██╗██║██╔══██║██╔═██╗ ██╔══╝      ${RED}██║   ██║██╔══██║██║╚██╔╝██║██╔══╝  ${RESET}"
+    echo -e "${GREEN}███████╗██║ ╚████║██║  ██║██║  ██╗███████╗    ${RED}╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗${RESET}"
+    echo -e "${GREEN}╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝    ${RED} ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝${RESET}"
+    echo
+}
+
+# Grid size
+rows=10
+cols=20
+
+# Snake initial position and direction
+snake=([0]="5-10")
+direction="RIGHT"
+
+# Initial score
+score=0
+
+# Generate initial food
+food="$((RANDOM % rows))-$((RANDOM % cols))"
+
+# ANSI color codes
+RED="\033[31m"
+RESET="\033[0m"
+GREEN="\033[32m"
+
+# Function to draw the grid
+draw_grid() {
+    tput civis  # Hide the cursor
+    tput clear  # Clear the screen
+    print_title  # Print the title
+
+    echo "Score: $score"
+    for ((i = 0; i < rows; i++)); do
+        for ((j = 0; j < cols; j++)); do
+            cell="$i-$j"
+            if [[ " ${snake[@]} " =~ " $cell " ]]; then
+                printf "${GREEN}O${RESET}"  # Snake in green
+            elif [[ "$food" == "$cell" ]]; then
+                printf "${RED}*${RESET}"  # Food in red
+            else
+                printf "."  # Empty space
+            fi
+        done
+        echo
+    done
+}
+
+# Function to move the snake
+move_snake() {
+    # Get head position
+    head=${snake[0]}
+    head_row=${head%-*}
+    head_col=${head#*-}
+
+    # Update head position based on direction
+    case "$direction" in
+    "UP") ((head_row--)) ;;
+    "DOWN") ((head_row++)) ;;
+    "LEFT") ((head_col--)) ;;
+    "RIGHT") ((head_col++)) ;;
+    esac
+
+    # Add new head
+    new_head="$head_row-$head_col"
+    snake=("$new_head" "${snake[@]}")
+
+    # Check for food
+    if [[ "$new_head" == "$food" ]]; then
+        food="$((RANDOM % rows))-$((RANDOM % cols))"  # Generate new food
+        ((score+=10))  # Increment score
+    else
+        unset 'snake[${#snake[@]}-1]'  # Remove tail if no food
+    fi
+}
+
+# Function to check collisions
+check_collision() {
+    head=${snake[0]}
+    head_row=${head%-*}
+    head_col=${head#*-}
+
+    # Check wall collision
+    if ((head_row < 0 || head_row >= rows || head_col < 0 || head_col >= cols)); then
+        game_over "You hit the wall!"
+    fi
+
+    # Check self-collision
+    for ((i = 1; i < ${#snake[@]}; i++)); do
+        if [[ "${snake[i]}" == "$head" ]]; then
+            game_over "You hit yourself!"
+        fi
+    done
+}
+
+# Function to handle game over
+game_over() {
+    tput cnorm  # Restore the cursor
+    tput clear
+    print_title
+    echo -e "${RED}Game Over! $1${RESET}"  # Display error message
+    echo "Final Score: $score"
+    echo
+    echo "Choose an option:"
+    echo "1. Restart"
+    echo "2. Quit"
+    read -p "Enter your choice: " choice
+
+    case "$choice" in
+    1)  # Restart the game
+        snake=([0]="5-10")
+        direction="RIGHT"
+        score=0
+        food="$((RANDOM % rows))-$((RANDOM % cols))"
+        ;;
+    2)  # Quit the game
+        tput clear
+        echo "Thanks for playing! Final Score: $score"
+        exit
+        ;;
+    *)  # Invalid input, quit by default
+        tput clear
+        echo "Invalid choice. Exiting."
+        exit
+        ;;
+    esac
+}
+
+# Main game loop
+while true; do
+    draw_grid
+    read -n1 -t 0.2 key  # Read user input with timeout
+
+    # Update direction based on input
+    case "$key" in
+    "w"|"W") direction="UP" ;;
+    "s"|"S") direction="DOWN" ;;
+    "a"|"A") direction="LEFT" ;;
+    "d"|"D") direction="RIGHT" ;;
+    "q"|"Q")  # Quit the game
+        tput cnorm  # Restore the cursor
+        tput clear
+        echo "Thanks for playing! Final Score: $score"
+        exit
+        ;;
+    esac
+
+    move_snake
+    check_collision
+done
